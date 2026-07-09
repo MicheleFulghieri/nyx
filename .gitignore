@@ -65,6 +65,7 @@ d/
 f/
 t/
 tmp_build_dir/
+build/
 AMReX_buildInfo.cpp
 buildInfo.cpp
 
@@ -77,3 +78,6 @@ junk
 
 ChangeLog.Nyx
 git.*
+
+# Outputs
+outputs/
