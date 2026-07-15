@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.animation as animation
 from matplotlib.colors import Normalize
+import matplotlib.image as mgimg
 from natsort import natsorted
 from unyt import cm, km, s, Mpc
 from datetime import datetime
@@ -82,13 +83,45 @@ def create_runlog_df(runlog_path):
                     headers[name].append(value)
 
     return pd.DataFrame(headers) # convert into pandas dataframe
+          
+# ---------------------------------------------------------------------------
+# 2D animation function
+# ---------------------------------------------------------------------------  
+def create_ani(frames_list, output_gif_path, title_prefix="Field"):
+    if len(frames_list) <= 1:  
+        return
     
-            
+    # Setup the figure for the animation
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xticks([])   # remeve ticks
+    ax.set_yticks([])
+
+    first_frame_path = frames_list[0]                      # take the first image
+    img_obj = ax.imshow(mgimg.imread(first_frame_path))  # convert the save paths in the frames_list into pixels
+    title_obj = ax.set_title(f"{title_prefix}") 
+    fig.tight_layout()
+
+    def update_frame(frame_index):  
+        current_path = frames_list[frame_index]  # path of the cuurent index
+        new_data = mgimg.imread(current_path)    # read the data
+        img_obj.set_data(new_data)               # substitute the pixels
+        
+        return [img_obj, title_obj]
+    
+    # Back to the main function
+    ani = animation.FuncAnimation(
+        fig, update_frame, frames=len(frames_list), interval=200, blit=True
+    )
+    ani.save(output_gif_path, writer="pillow", fps=3, dpi=150)
+    plt.close(fig)
+    
+
+
 # ---------------------------------------------------------------------------
 # Output directory setup
 # ---------------------------------------------------------------------------
 def make_dirs(base):
-    subdirs = ["ThermalEvolution", "Gas", "Gravity"]
+    subdirs = ["ThermalEvolution", "Gas", "Gravity", "ParticlePositions", "Animations"]
     for d in subdirs:
         os.makedirs(os.path.join(base, d), exist_ok=True)
 
@@ -183,6 +216,15 @@ def main():
     z_values = []
     a_values = []
 
+    # Storage for animations 
+    frames_density  = []   
+    frames_eint     = []   
+    frames_temp     = []   
+    frames_velmag   = []   
+    frames_dmmass   = []   
+    frames_gpot     = []   
+    frames_3d       = []
+
     for i, plt_path in enumerate(plotfiles):
         ds  = yt.load(plt_path, hint='Nyx')   # both Nyx and amrex format possible
         ad  = ds.all_data()
@@ -198,7 +240,7 @@ def main():
         # Physical box size
         Lx = float(ds.domain_width[0].to("Mpc").v)
         Ly = float(ds.domain_width[1].to("Mpc").v)
-
+        Lz = float(ds.domain_width[2].to("Mpc").v)
 
         # ---- 2D density slice ----
         fields = [('boxlib', 'density'), ('boxlib', 'rho_e'), ('boxlib', 'Temp'), 
@@ -264,38 +306,96 @@ def main():
         legend_box.patch.set_edgecolor('gray')
         ax.add_artist(legend_box)
 
-    # Create folders (if they do not exist) and save
-    os.makedirs(os.path.join(save_path, "Gas", "Density"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "Eint"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "Temp"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "XMom"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "YMom"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "ZMom"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gas", "VelMag"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gravity", "GPot"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "Gravity", "DMmass"), exist_ok=True)
+        # Create folders (if they do not exist) and save
+        os.makedirs(os.path.join(save_path, "Gas", "Density"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "Eint"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "Temp"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "XMom"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "YMom"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "ZMom"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gas", "VelMag"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gravity", "GPot"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "Gravity", "DMmass"), exist_ok=True)
 
-    dens_path = os.path.join(save_path, "Gas", "Density", f"Density_{i:03d}.png")
-    eint_path = os.path.join(save_path, "Gas", "Eint", f"InternalEnergy_{i:03d}.png")
-    temp_path = os.path.join(save_path, "Gas", "Temp", f"Temperature_{i:03d}.png")
-    xmom_path = os.path.join(save_path, "Gas", "XMom", f"Momx_{i:03d}.png")
-    ymom_path = os.path.join(save_path, "Gas", "YMom", f"Momy_{i:03d}.png")
-    zmom_path = os.path.join(save_path, "Gas", "ZMom", f"Momz_{i:03d}.png")
-    velmag_path = os.path.join(save_path, "Gas", "VelMag", f"VelMag_{i:03d}.png")
-    gpot_path = os.path.join(save_path, "Gravity", "GPot", f"GPot_{i:03d}.png")
-    dmm_path = os.path.join(save_path, "Gravity", "DMmass", f"DMmass_{i:03d}.png")
+        dens_path = os.path.join(save_path, "Gas", "Density", f"Density_{i:03d}.png")
+        eint_path = os.path.join(save_path, "Gas", "Eint", f"InternalEnergy_{i:03d}.png")
+        temp_path = os.path.join(save_path, "Gas", "Temp", f"Temperature_{i:03d}.png")
+        xmom_path = os.path.join(save_path, "Gas", "XMom", f"Momx_{i:03d}.png")
+        ymom_path = os.path.join(save_path, "Gas", "YMom", f"Momy_{i:03d}.png")
+        zmom_path = os.path.join(save_path, "Gas", "ZMom", f"Momz_{i:03d}.png")
+        velmag_path = os.path.join(save_path, "Gas", "VelMag", f"VelMag_{i:03d}.png")
+        gpot_path = os.path.join(save_path, "Gravity", "GPot", f"GPot_{i:03d}.png")
+        dmm_path = os.path.join(save_path, "Gravity", "DMmass", f"DMmass_{i:03d}.png")
 
-    slc.plots[('boxlib', 'density')].figure.savefig(dens_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'rho_e')].figure.savefig(eint_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'Temp')].figure.savefig(temp_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'xmom')].figure.savefig(xmom_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'ymom')].figure.savefig(ymom_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'zmom')].figure.savefig(zmom_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'magvel')].figure.savefig(velmag_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'phi_grav')].figure.savefig(gpot_path, dpi=300, bbox_inches='tight')
-    slc.plots[('boxlib', 'particle_mass_density')].figure.savefig(dmm_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'density')].figure.savefig(dens_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'rho_e')].figure.savefig(eint_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'Temp')].figure.savefig(temp_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'xmom')].figure.savefig(xmom_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'ymom')].figure.savefig(ymom_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'zmom')].figure.savefig(zmom_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'magvel')].figure.savefig(velmag_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'phi_grav')].figure.savefig(gpot_path, dpi=300, bbox_inches='tight')
+        slc.plots[('boxlib', 'particle_mass_density')].figure.savefig(dmm_path, dpi=300, bbox_inches='tight')
+
+        # Store the save path for the animation
+        frames_density.append(dens_path)
+        frames_eint.append(eint_path)
+        frames_temp.append(temp_path)
+        frames_velmag.append(velmag_path)
+        frames_gpot.append(gpot_path)
+        frames_dmmass.append(dmm_path)
+
+        # ---- 3D particle scatter ----
+        px  = ad[('DM', 'particle_position_x')].to("Mpc").v
+        py  = ad[('DM', 'particle_position_y')].to("Mpc").v
+        pz  = ad[('DM', 'particle_position_z')].to("Mpc").v
+        pvx = (ad[('DM', 'particle_xvel')] * (cm / s)).to("km/s").v
+        pvy = (ad[('DM', 'particle_yvel')] * (cm / s)).to("km/s").v
+        pvz = (ad[('DM', 'particle_zvel')] * (cm / s)).to("km/s").v
+
+        #n_sub = max(1, len(px) // 50)
+        n_sub = min(20000, len(px))     # 2% of the particle, but commented to avoid mess
+        idx3d = np.random.choice(len(px), n_sub, replace=False)   # random set of indices
+
+        fig3, ax3 = plt.figure(figsize=(7, 6)), None
+        ax3 = fig3.add_subplot(111, projection="3d")
+        sc3 = ax3.scatter(px[idx3d], py[idx3d], pz[idx3d],
+                          s=0.3, c=np.abs(pvx[idx3d]),            # size = s and coloration according to x velocity
+                          cmap="plasma", alpha=0.7, rasterized=True)
+        fig3.colorbar(sc3, ax=ax3, label=r"$|v_x|$ [km/s]", shrink=0.6)
+        ax3.set_xlabel("x [Mpc]"); ax3.set_ylabel("y [Mpc]"); ax3.set_zlabel("z [Mpc]")
+        ax3.set_xlim(0, Lx); ax3.set_ylim(0, Ly); ax3.set_zlim(0, Lz)
+        ax3.set_title(f"DM particles  |  $a = {a_now:.3f}$", fontweight="bold")
+        ax3.view_init(elev=22, azim=30 + 60 * i / max(len(plotfiles) - 1, 1))
+        fig3.tight_layout()
+        path_3d = os.path.join(save_path, "ParticlePositions", f"3D_{i:04d}.png")
+        fig3.savefig(path_3d, dpi=120)        
+        plt.close(fig3)
+        frames_3d.append(path_3d)
+
+        print(f"[{i+1:3d}/{len(plotfiles)}] a={a_now:.4f}  z={z_now:.2f}"
+              f"  |vx|_max={np.max(np.abs(pvx)):.1f} km/s")
 
 
+
+    # ---- Animation of the 2D slices ----
+    gif_dens = os.path.join(save_path, "Animations", "gas_density.gif")
+    gif_eint = os.path.join(save_path, "Animations", "gas_eint.gif")
+    gif_temp = os.path.join(save_path, "Animations", "gas_temperature.gif")
+    gif_velmag = os.path.join(save_path, "Animations", "gas_velmag.gif")
+    gif_gpot = os.path.join(save_path, "Animations", "gpot.gif")
+    gif_dmmass = os.path.join(save_path, "Animations", "dmmass.gif")
+    gif_3d  = os.path.join(save_path, "Animations", "3d.gif")
+
+    create_ani(frames_density, gif_dens, title_prefix="Gas Density")
+    create_ani(frames_eint, gif_eint, title_prefix="Gas Internal Energy")
+    create_ani(frames_temp, gif_temp, title_prefix="Gas Temperature")
+    create_ani(frames_velmag, gif_velmag, title_prefix="Gas Velocity Magnitude")
+    create_ani(frames_gpot, gif_gpot, title_prefix="Gravitational Potential")
+    create_ani(frames_dmmass, gif_dmmass, title_prefix="DM Mass")
+    create_ani(frames_3d, gif_3d, title_prefix="Particle 3D")
+
+    
 
 if __name__ == "__main__":
     main()
