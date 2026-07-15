@@ -5,12 +5,16 @@ analyze_msb.py
 Scientific analysis script for the Mini Santa Barbara test (Nyz).
 
 Produces:
-  - Thermal history across redshift for maximum and density weighted temperature
-  - 
+  - Thermal History: Maximum and density-weighted temperature vs redshift ($z$).
+  - 2D Physical Maps: Slices of gas properties (density, internal energy,
+    temperature, velocity, momentum), gravitational potential, and projected 
+    Dark Matter mass density.
+  - 3D DM Kinematic Scatter
 
 Usage:
     python analyze_msb.py --plotfiles /path/to/output/plt* --save /path/to/save
 """
+
 
 import argparse
 import glob
@@ -26,6 +30,7 @@ import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.animation as animation
 from matplotlib.colors import Normalize
+from PIL import Image
 import matplotlib.image as mgimg
 from natsort import natsorted
 from unyt import cm, km, s, Mpc
@@ -85,7 +90,7 @@ def create_runlog_df(runlog_path):
     return pd.DataFrame(headers) # convert into pandas dataframe
           
 # ---------------------------------------------------------------------------
-# 2D animation function
+# Animation function
 # ---------------------------------------------------------------------------  
 def create_ani(frames_list, output_gif_path, title_prefix="Field"):
     if len(frames_list) <= 1:  
@@ -96,15 +101,16 @@ def create_ani(frames_list, output_gif_path, title_prefix="Field"):
     ax.set_xticks([])   # remeve ticks
     ax.set_yticks([])
 
-    first_frame_path = frames_list[0]                      # take the first image
-    img_obj = ax.imshow(mgimg.imread(first_frame_path))  # convert the save paths in the frames_list into pixels
+    first_frame_path = frames_list[0]   
+    img_data = np.array(Image.open(first_frame_path)) # take the first image
+    img_obj = ax.imshow(img_data)                     # convert the save paths in the frames_list into pixels
     title_obj = ax.set_title(f"{title_prefix}") 
     fig.tight_layout()
 
     def update_frame(frame_index):  
-        current_path = frames_list[frame_index]  # path of the cuurent index
-        new_data = mgimg.imread(current_path)    # read the data
-        img_obj.set_data(new_data)               # substitute the pixels
+        current_path = frames_list[frame_index]       # path of the cuurent index
+        new_data = np.array(Image.open(current_path)) # read the data
+        img_obj.set_data(new_data)                    # substitute the pixels
         
         return [img_obj, title_obj]
     
@@ -287,7 +293,7 @@ def main():
 
         # ---- 2D slice plots ----
         # Global annotations valid for all plots
-        slc.annotate_timestamp(corner="upper_left", time=True, draw_inset_box=True)
+        slc.annotate_timestamp(corner="upper_left", redshift=True, time=False, draw_inset_box=True)
         slc.annotate_scale(corner="upper_right")
         slc.annotate_grids(alpha=0.3, min_level=1)  # visualize AMR refined grids
         slc._setup_plots() # force matplotlib rendering to manipulate axes and save custom figures
